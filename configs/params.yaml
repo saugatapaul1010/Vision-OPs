@@ -1,0 +1,104 @@
+# The configurations of this computer vision project (for *.py modules)
+
+image_data_paths:
+  images: data/raw/images
+  info_csv_file: data/raw/image_info.csv
+  bboxes_csv_file: data/raw/bboxes/bounding_boxes.csv
+  train_csv_file: data/prepared/train.csv
+  test_csv_file: data/prepared/test.csv
+
+new_image_data_paths:
+  images: data/new/images
+  info_csv_file: data/new/new_image_info.csv
+  bboxes_csv_file: data/new/bboxes/new_bounding_boxes.csv
+
+image_dataset_conf:
+  box_format: coco
+  batch_size: 16
+
+object_detection_model:
+  name: faster_rcnn_mob
+  registered_name: best_faster_rcnn_mob
+  number_classes: 2
+  load_parameters:
+    trainable_backbone_layers: 1
+    rpn_score_thresh: 0.4
+    box_score_thresh: 0.5
+    box_nms_thresh: 0.4
+    box_detections_per_img: 120
+    box_positive_fraction: 0.4
+  save_dir: models
+
+model_training_inference_conf:
+  device_cuda: true
+  # any metric of precision, recall, or f_beta:
+  metric_to_find_best: &BM f_beta
+  initial_metric_value: 0.0
+  evaluation_iou_threshold: 0.4
+  evaluation_beta: 2
+  # A default optimizer and lr_sheduler for model training
+  # if the best parameters are not saved
+  optimizer:
+    name: SGD
+    parameters: {lr: 0.001}
+  lr_sheduler:
+    name: null
+    parameters: null
+  epochs: 15
+  log_metrics: true
+  register_best_log_model: true
+  save_best_ckpt: true
+  checkpoint: null
+  metrics_to_plot: [*BM, train_epoch_loss]
+  license_pattern_to_select_images: !!str "(CC0 1.0)"
+  save_model_output_dir: outputs
+
+mlflow_tracking_conf:
+  experiment_name: Fine-Tuning_Model
+  run_name: fine-tuning_with_optimized_parameters
+  # A default MLflow tracking URI
+  # (it can be set using the MLFLOW_TRACKING_URI environment variable):
+  mltracking_uri: !!str "sqlite:///mlruns/mlruns.db"
+  artifact_location: mlruns/artifacts
+
+hyperparameter_optimization:
+  study_name: faster_rcnn_mob_hyper_opt_study
+  # a metric to maximize:
+  metric: *BM
+  # a sampler, a pruner, or their parameters can contain null values
+  sampler:
+    name: TPESampler
+    parameters: null
+  pruner:
+    name: MedianPruner
+    parameters: {n_warmup_steps: 3}
+  epochs: 10
+  n_trials: 100
+  timeout: 2400
+  hyperparameters:
+    # At least one optimizer must be defined with
+    # at least one optimization parameter (and a scheduler)
+    optimizers:
+      SGD:
+        lr: [{low: 0.00001, high: 0.01, log: true}, float]
+        weight_decay: [{low: 0.0, high: 0.001, step: 0.0001}, float]
+        momentum: [{low: 0.0, high: 0.9, step: 0.3}, float]
+      Adam:
+        lr: [{low: 0.00001, high: 0.01, log: true}, float]
+        weight_decay: [{low: 0.0, high: 0.001, step: 0.0001}, float]
+    lr_schedulers:
+      StepLR:
+        step_size: [{low: 1, high: 3}, int]
+        gamma: [{low: 0.1, high: 0.2, log: true}, float]
+      LinearLR: null
+      None: null
+  save_best_parameters_path: configs/best_params.yaml
+  save_study_dir: hyper_opt
+
+deployed_model_monitoring:
+  # Each of reference and current data records
+  # ~= half of the total number of records
+  max_total_number_of_records_to_load: 1000
+  save_deployed_model_info_path: monitoring/current_deployed_model.yaml
+  save_monitoring_data_path: monitoring/data/deployed_model_performance.csv
+  save_monitoring_check_results_dir: monitoring
